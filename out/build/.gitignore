@@ -1,0 +1,9 @@
+/rboot-hex2a.h
+/rboot-stage2a.elf
+/rboot-stage2a.o
+/app_0.map
+/app_0.out
+/app_app.a
+/libmain2.a
+/rboot.elf
+/rboot.o
