@@ -21,15 +21,15 @@
 
 // If you want, you can define WiFi settings globally in Eclipse Environment Variables
 #ifndef WIFI_SSID
-#define WIFI_SSID "777DarkDima777" // Put you SSID and Password here
-#define WIFI_PWD "12345679"
+#define WIFI_SSID "YOU_SSID" // Put you SSID and Password here
+#define WIFI_PWD "YOU_PASS"
 #endif
 
 //#define LED_PIN 15 // GPIO number
 #define r_pin  4
 #define g_pin  5
 #define b_pin  0
-//#define s 100    //из hsv
+//#define s 100    //ГЁГ§ hsv
 
 /*#define IR_ONE_SPACE    1200 /////TEST
  #define IR_ZERO_SPACE   400
@@ -57,14 +57,14 @@ HttpServer server;
 HttpClient majordomo;
 /////////////////////////////////flags
 bool motionFlag = 0;   // 0/1 motion
-bool dayFlag;       //светлое/тёмное время суток
+bool dayFlag;       //Г±ГўГҐГІГ«Г®ГҐ/ГІВёГ¬Г­Г®ГҐ ГўГ°ГҐГ¬Гї Г±ГіГІГ®ГЄ
 bool motionWorkFlag;       // on/off motion detected
 bool valueMSensor;
 //uint8_t reboot = 0;
 int motionTimeOn;
-//uint8_t vNightMotion; //- яркость ленты ночью
+//uint8_t vNightMotion; //- ГїГ°ГЄГ®Г±ГІГј Г«ГҐГ­ГІГ» Г­Г®Г·ГјГѕ
 
-/////////////////////////////////////начальный значения
+/////////////////////////////////////Г­Г Г·Г Г«ГјГ­Г»Г© Г§Г­Г Г·ГҐГ­ГЁГї
 int name, minimalTemp;
 //uint8_t pswd[15], ssid[25];
 int counterMotion = 0;
@@ -245,9 +245,9 @@ void ICACHE_FLASH_ATTR updateHeater() {
 		heatDisableTimer.setIntervalMs(1000 * heatSec);
 		heatEnableTimer.setIntervalMs(1000 * whiteFreezeSec);
 
-		//если таймеры не запущены
+		//ГҐГ±Г«ГЁ ГІГ Г©Г¬ГҐГ°Г» Г­ГҐ Г§Г ГЇГіГ№ГҐГ­Г»
 		if (!heatDisableTimer.isStarted() && !heatEnableTimer.isStarted()) {
-			//запускаем таймер
+			//Г§Г ГЇГіГ±ГЄГ ГҐГ¬ ГІГ Г©Г¬ГҐГ°
 			heatEnableTimer.startOnce();
 		}
 
@@ -353,7 +353,7 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 	requestStr += ("voff = " + String(voff) + "<br/>");
 	requestStr += ("alive = " + String(alive) + "<br/>");
 	requestStr += ("valueMSensor = " + String(valueMSensor) + "<br/>");
-	requestStr += ("f version rom1 = " + String(APP_VERSION) + "  <br/>"); //1.11 добавил смену сигнала датчика движения(1 или 0)
+	requestStr += ("f version rom1 = " + String(APP_VERSION) + "  <br/>"); //1.11 Г¤Г®ГЎГ ГўГЁГ« Г±Г¬ГҐГ­Гі Г±ГЁГЈГ­Г Г«Г  Г¤Г ГІГ·ГЁГЄГ  Г¤ГўГЁГ¦ГҐГ­ГЁГї(1 ГЁГ«ГЁ 0)
 	requestStr += ("h version  = 1.00  <br/>"); //ROM_0_URL
 	requestStr += ("path = " + String(ROM_0_URL) + "<br/>"); //ROM_0_URL
 	requestStr += ("h = " + String(lights->getH()) + "<br/>"); //ROM_0_URL
@@ -410,10 +410,10 @@ void ICACHE_FLASH_ATTR handleIr(HttpRequest &request, HttpResponse &response) {
 		irSender.setFrequency(38);
 		str.toCharArray(symbols, 300);
 //while (char symbol = *symbols) {
-	//	HW_pwm.setPeriod(0);     ----------это нужное
-	//	ledTimer.stop();       ----------это нужное
-	//	tempTimer.stop();         ----------это нужное
-	//	motionTimer.stop();        ----------это нужное
+	//	HW_pwm.setPeriod(0);     ----------ГЅГІГ® Г­ГіГ¦Г­Г®ГҐ
+	//	ledTimer.stop();       ----------ГЅГІГ® Г­ГіГ¦Г­Г®ГҐ
+	//	tempTimer.stop();         ----------ГЅГІГ® Г­ГіГ¦Г­Г®ГҐ
+	//	motionTimer.stop();        ----------ГЅГІГ® Г­ГіГ¦Г­Г®ГҐ
 		delay(10);
 		irSender.space(0);
 		irSender.mark(IR_HEADER_MARK);
@@ -462,10 +462,10 @@ void ICACHE_FLASH_ATTR handleIr(HttpRequest &request, HttpResponse &response) {
 		irSender.space(0);
 
 	}
-	//HW_pwm.setPeriod(period);  ----------это нужное
-	//ledTimer.start();         ----------это нужное
-	//tempTimer.start();        ----------это нужное
-	//motionTimer.start();        ----------это нужное
+	//HW_pwm.setPeriod(period);  ----------ГЅГІГ® Г­ГіГ¦Г­Г®ГҐ
+	//ledTimer.start();         ----------ГЅГІГ® Г­ГіГ¦Г­Г®ГҐ
+	//tempTimer.start();        ----------ГЅГІГ® Г­ГіГ¦Г­Г®ГҐ
+	//motionTimer.start();        ----------ГЅГІГ® Г­ГіГ¦Г­Г®ГҐ
 			sendLog("handleIr");
 }
 
@@ -541,40 +541,40 @@ void ICACHE_FLASH_ATTR sendTemp() {
 				//if temp high - enable double time freeze
 				if (newT1 > minimalTemp && newT2 > minimalTemp) {
 
-					//если подогревается
+					//ГҐГ±Г«ГЁ ГЇГ®Г¤Г®ГЈГ°ГҐГўГ ГҐГІГ±Гї
 					if (halfFreeze) {
-						//выключаем обогрев
+						//ГўГ»ГЄГ«ГѕГ·Г ГҐГ¬ Г®ГЎГ®ГЈГ°ГҐГў
 						halfFreeze = false;
 						whiteFreezeSec = defoltFreezeSec;
 					}
 
-					//если не охлаждается
+					//ГҐГ±Г«ГЁ Г­ГҐ Г®ГµГ«Г Г¦Г¤Г ГҐГІГ±Гї
 					if (!doubleFreeze) {
-						//охлаждаем
+						//Г®ГµГ«Г Г¦Г¤Г ГҐГ¬
 						doubleFreeze = true;
 						defoltFreezeSec = whiteFreezeSec;
 						//	whiteFreezeSec += whiteFreezeSec / 3;
 					}
-					//включаем подогрев
+					//ГўГЄГ«ГѕГ·Г ГҐГ¬ ГЇГ®Г¤Г®ГЈГ°ГҐГў
 					//if (whiteFreezeSec + 0.1 > heatSec) {
 					whiteFreezeSec += 0.1;
 					//	}
 
-					//если температура ниже выставленной
+					//ГҐГ±Г«ГЁ ГІГҐГ¬ГЇГҐГ°Г ГІГіГ°Г  Г­ГЁГ¦ГҐ ГўГ»Г±ГІГ ГўГ«ГҐГ­Г­Г®Г©
 				} else {
-					//если включено охлаждение
+					//ГҐГ±Г«ГЁ ГўГЄГ«ГѕГ·ГҐГ­Г® Г®ГµГ«Г Г¦Г¤ГҐГ­ГЁГҐ
 					if (doubleFreeze) {
-						//выключаем охлаждение
+						//ГўГ»ГЄГ«ГѕГ·Г ГҐГ¬ Г®ГµГ«Г Г¦Г¤ГҐГ­ГЁГҐ
 						doubleFreeze = false;
 						whiteFreezeSec = defoltFreezeSec;
 					} else {
-						//если не включен подогрев
+						//ГҐГ±Г«ГЁ Г­ГҐ ГўГЄГ«ГѕГ·ГҐГ­ ГЇГ®Г¤Г®ГЈГ°ГҐГў
 						if (!halfFreeze) {
-							//включаем подогрев
+							//ГўГЄГ«ГѕГ·Г ГҐГ¬ ГЇГ®Г¤Г®ГЈГ°ГҐГў
 							halfFreeze = true;
 							defoltFreezeSec = whiteFreezeSec;
 						}
-						//включаем подогрев
+						//ГўГЄГ«ГѕГ·Г ГҐГ¬ ГЇГ®Г¤Г®ГЈГ°ГҐГў
 						if (whiteFreezeSec - 0.1 > heatSec) {
 							whiteFreezeSec -= 0.1;
 						}
