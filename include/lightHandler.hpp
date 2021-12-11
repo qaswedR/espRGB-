@@ -5,7 +5,7 @@
 #include <SmingCore/SmingCore.h>
 
 
-#define OK_RESPONCE "Ok.\n <br/>"
+#define OK_RESPONCE "<!DOCTYPE html><head>OK</head></body></html>"
 #define w_pin  15
 
 
@@ -17,26 +17,27 @@ enum pinsEnum{
   WhitePin
 };
 
+typedef void (*callBackSetV)(float v_new);
 
 class LightHandler {
 public:
 
-  LightHandler(uint8_t *pins, float *white, float *voff, bool *motionFlag);
+  LightHandler(uint8_t *pins, float *white, callBackSetV _callback);
 public:
-static void ICACHE_FLASH_ATTR handleHsv(HttpRequest &request, HttpResponse &response);
-void ICACHE_FLASH_ATTR handleHsvImpl(HttpRequest &request, HttpResponse &response);
-  void ICACHE_FLASH_ATTR setVNew(float _v)
+static void  handleHsv(HttpRequest &request, HttpResponse &response);
+void handleHsvImpl(HttpRequest &request, HttpResponse &response);
+  void  setVNew(float _v)
   {
 	  v_new = _v;
 	  ledTimer.start();
   }
   
-  void ICACHE_FLASH_ATTR setHNew(float _h)
+  void setHNew(float _h)
   {
 	  h_new = _h;
   }
   
-  void ICACHE_FLASH_ATTR setSNew(float _s)
+  void setSNew(float _s)
   {
 	  s_new = _s;
   }
@@ -63,19 +64,20 @@ void ICACHE_FLASH_ATTR handleHsvImpl(HttpRequest &request, HttpResponse &respons
   {
 	  return s;
   }
-  float ICACHE_FLASH_ATTR getV()
+  float  getV()
   {
 	  return v;
   }
-  bool ICACHE_FLASH_ATTR ledTimerIsStarted()
+  bool  ledTimerIsStarted()
   {
 	  return ledTimer.isStarted();
   }
-  void ICACHE_FLASH_ATTR setWhite(bool isHight)
+  void  setWhite(bool isHight)
   {
 	  HW_pwm->analogWrite(w_pin, isHight ?  duty - 1 : 0);
   }
-void ICACHE_FLASH_ATTR loop();
+  callBackSetV callback;
+void loop();
 Timer ledTimer, *whiteOffTimer = nullptr;
 private:
 bool countUp = true;
@@ -88,11 +90,10 @@ float s = 1;
 float v = 0;
 uint8_t *pinPtr;
 float r, g, b;
-float &white, &voff;
+float &white;
 int d_light = 0;
 uint8_t mode = 0;
 unsigned int duty;
-bool &motionFlag;
 HardwarePWM *HW_pwm;
 };
 

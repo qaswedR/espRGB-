@@ -8,11 +8,10 @@
   static LightHandler *Instance = nullptr;
  
 
- LightHandler::LightHandler(uint8_t *pins, float *_white, float *_voff, bool *_motionFlag):
+LightHandler::LightHandler(uint8_t *pins, float *_white, callBackSetV _callback):
  white(*_white),
- voff(*_voff),
- pinPtr(pins),
- motionFlag(*_motionFlag)
+ callback(_callback),
+ pinPtr(pins)
  {
 		Instance = this;
    HW_pwm = new HardwarePWM(pins, 4);
@@ -81,10 +80,8 @@ void LightHandler::handleHsvImpl(HttpRequest &request, HttpResponse &response)
 			}
 		} else {
 			v_new = iparamV;
-			if(voff == v_new)
-			{
-				motionFlag = 0;
-			}
+			
+			callback(v_new);
 		}
 	} else {
 		if (request.getQueryParameter("v_new").length() > 0

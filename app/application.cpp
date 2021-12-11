@@ -14,10 +14,13 @@
 //#include <string>
 #include <Libraries/heatpumpir/heatpumpIR.h>
 
+#define HTTP_BR "<br/>"
 // download urls, set appropriately
-#define ROM_0_URL  "http://192.168.0.4:80/rom0.bin"
-#define ROM_1_URL  "http://192.168.0.4:80/rom1.bin"
-#define SPIFFS_URL "http://192.168.0.4:80/spiff_rom.bin"
+#define SERVER_IP "192.168.0.4"
+#define SERVER_URL "http://" SERVER_IP "/firmware/main/"
+#define ROM_0_URL  SERVER_URL "rom0.bin"
+#define ROM_1_URL  SERVER_URL "rom1.bin"
+#define SPIFFS_URL SERVER_URL "spiff_rom.bin"
 
 // If you want, you can define WiFi settings globally in Eclipse Environment Variables
 #ifndef WIFI_SSID
@@ -31,6 +34,8 @@
 #define b_pin  0
 //#define s 100    //из hsv
 
+#define HSV_TO_STATE(h,s,v) 
+
 /*#define IR_ONE_SPACE    1200 /////TEST
  #define IR_ZERO_SPACE   400
  #define IR_BIT_MARK     450
@@ -38,9 +43,7 @@
  #define IR_HEADER_MARK  3400
  #define IR_HEADER_SPACE 1700*/
 
-const char* host = "192.168.0.4";   //adress servera
-IRSenderBitBang irSender(14);
-IRsend irsend(14);
+LightHandler *lights = nullptr;
 DS18S20 ReadTemp;
 //Timer StartaliveTimer;
 Timer aliveTimer;
@@ -48,7 +51,6 @@ Timer motionTimer;
 Timer tempTimer;
 Timer heatDisableTimer, dieTimer, rebootTimer, heatEnableTimer, coreTimer;
 //Livolo livolo(12);
-RCSwitch mySwitch = RCSwitch();
 //DriverPWM ledPWM;
 uint8_t pins[4] = { r_pin, g_pin, b_pin, w_pin }; // List of pins that you want to connect to pwm
 float white;
@@ -65,32 +67,35 @@ int motionTimeOn;
 //uint8_t vNightMotion; //- яркость ленты ночью
 
 /////////////////////////////////////начальный значения
-int name, minimalTemp;
-//uint8_t pswd[15], ssid[25];
-int counterMotion = 0;
-float Tnow;
+int name;
+float minimalTemp;
 float oldT1;
 float newT1, newT2;
 float told = 0;
-float hold = 0;
 float motionV = 0;
 float voff = 0.0;
-int32 i = 0;
-int32 inc = 1;
 bool alive = 0;
 rBootHttpUpdate* otaUpdater = 0;
-static bool needSendIp = false;
 static bool needReconnect = false;
 float heatSec;
 float whiteFreezeSec;
 bool HeatMode = false;
 //int tempTimerSec = 9;
 bool needReboot = false;
-void onDataSent(HttpClient& client, bool successful);
- void sendLog(String log);
-//LightHandler *lights = nullptr;// = LightHandler::getInstance(pins, &white, &voff, &motionFlag);
-LightHandler _lights(pins, &white, &voff, &motionFlag);
-LightHandler *lights = &_lights;
+int soilMoisturePercent = 0;
+uint8_t soilMoistureCheckCounter = 100;
+
+///////////////FUNCTIONS
+void ICACHE_FLASH_ATTR onDataSent(HttpClient& client, bool successful);
+ void ICACHE_FLASH_ATTR sendLog(String log);
+void ICACHE_FLASH_ATTR sendIp();
+///////////////////////
+
+void ICACHE_FLASH_ATTR sendResponce(HttpResponse &response)
+{
+		response.setContentType(ContentType::HTML);
+		response.sendString(OK_RESPONCE);
+}
 void  OtaUpdate_CallBack(bool result) {
 
 	//Serial.println("In callback...");
@@ -138,7 +143,7 @@ void  heatOnWitePin() {
 void  reboot(){
 	System.restart();	
 }
-void  rebootNow() {
+void ICACHE_FLASH_ATTR rebootNow() {
 
 //	saveConfig(nameFile, String(name));
 							needReboot = true;
@@ -217,7 +222,7 @@ void  Switch() {
  {
 	 String resQuery;
 	 resQuery += "http://";
-	 resQuery += host;
+	 resQuery += SERVER_IP;
 	 resQuery += "/objects/?object=";
 	 resQuery += obj == "" ? String("espRGB") += name : obj;
 	// resQuery += name;
@@ -234,9 +239,6 @@ void  Switch() {
  }
  
 void ICACHE_FLASH_ATTR onDataSent(HttpClient& client, bool successful) {
-	
-	if(needReboot)
-    	System.restart();
 }
 
 void ICACHE_FLASH_ATTR updateHeater() {
@@ -274,14 +276,15 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 		aliveTimer.setIntervalMs(1000 * 5);
 		aliveTimer.start();
         alive = 0;
-		needSendIp = true;
+		//sendIp();
+
 		//delay(10);
 		//System.restart();
 
 	}
 
 	if (request.getQueryParameter("temp").length() > 0) {
-		minimalTemp = request.getQueryParameter("temp").toInt();
+		minimalTemp = request.getQueryParameter("temp").toFloat();
 		saveConfig(tempFile, String(minimalTemp));
 	}
 	
@@ -347,34 +350,37 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 	
 
 	response.setContentType(ContentType::HTML);
-	String requestStr = "name = " + String(name) + "<br/>";
-	requestStr += ("mWFlag = " + String(motionWorkFlag) + "<br/>");
-	//requestStr += ("smoothD = " + String(smoothD) + "<br/>");
-	requestStr += ("voff = " + String(voff) + "<br/>");
-	requestStr += ("alive = " + String(alive) + "<br/>");
-	requestStr += ("valueMSensor = " + String(valueMSensor) + "<br/>");
-	requestStr += ("f version rom1 = " + String(APP_VERSION) + "  <br/>"); //1.11 добавил смену сигнала датчика движения(1 или 0)
+	String requestStr = "name = " + String(name) + HTTP_BR;
+	requestStr += "id = " + String(system_get_chip_id()) + HTTP_BR;
+	requestStr += ("mWFlag = " + String(motionWorkFlag) + HTTP_BR);
+	//requestStr += ("smoothD = " + String(smoothD) + HTTP_BR);
+	requestStr += ("voff = " + String(voff) + HTTP_BR);
+	requestStr += ("alive = " + String(alive) + HTTP_BR);
+	requestStr += ("valueMSensor = " + String(valueMSensor) + HTTP_BR);
+	requestStr += ("f version rom1 = " + String(APP_VERSION) + HTTP_BR); //1.11 добавил смену сигнала датчика движения(1 или 0)
 	requestStr += ("h version  = 1.00  <br/>"); //ROM_0_URL
-	requestStr += ("path = " + String(ROM_0_URL) + "<br/>"); //ROM_0_URL
-	requestStr += ("h = " + String(lights->getH()) + "<br/>"); //ROM_0_URL
-	requestStr += ("s = " + String(lights->getS()) + "<br/>"); //ROM_0_URL
-	requestStr += ("v = " + String(lights->getV()) + "<br/>"); //ROM_0_URL
-	requestStr += ("wFrzSec = " + String(whiteFreezeSec) + "<br/>"); //ROM_0_URL
-	requestStr += ("heatSec = " + String(heatSec) + "<br/>"); //ROM_0_URL
+	requestStr += ("path = " + String(ROM_0_URL) + HTTP_BR); //ROM_0_URL
+	requestStr += ("h = " + String(lights->getH()) + HTTP_BR); //ROM_0_URL
+	requestStr += ("s = " + String(lights->getS()) + HTTP_BR); //ROM_0_URL
+	requestStr += ("v = " + String(lights->getV()) + HTTP_BR); //ROM_0_URL
+	requestStr += ("wFrzSec = " + String(whiteFreezeSec) + HTTP_BR); //ROM_0_URL
+	requestStr += ("heatSec = " + String(heatSec) + HTTP_BR); //ROM_0_URL
 	requestStr +=
-			("heat on= " + String(heatDisableTimer.isStarted()) + "<br/>");
+			("heat on= " + String(heatDisableTimer.isStarted()) + HTTP_BR);
 	requestStr += ("freeze on = " + String(heatEnableTimer.isStarted())
-			+ "<br/>");
-	requestStr += ("HeatMode = " + String(HeatMode) + "<br/>");
-	requestStr += ("Temp1 = " + String(newT1) + "<br/>");
-	requestStr += ("T2 = " + String(newT2) + "<br/>");
-	//response.sendString("s = " + String(heatSeconds) + "<br/>");
+			+ HTTP_BR);
+	requestStr += ("HeatMode = " + String(HeatMode) + HTTP_BR);
+	requestStr += ("Temp1 = " + String(newT1) + HTTP_BR);
+	requestStr += ("T2 = " + String(newT2) + HTTP_BR);
+	//response.sendString("s = " + String(heatSeconds) + HTTP_BR);
 
-	requestStr += ("minTemp = " + String(minimalTemp) + "<br/>");
-	requestStr += ("currVmotion = " + String(motionV) + "<br/>");
-	requestStr += ("mf = " + String(motionFlag) + "<br/>");
-	requestStr += ("mti = " + String(motionTimer.getIntervalMs()) + "<br/>");
-	requestStr += ("lts = " + String(lights->ledTimerIsStarted()) + "<br/>");
+	requestStr += ("minTemp = " + String(minimalTemp) + HTTP_BR);
+	//requestStr += ("currVmotion = " + String(motionV) + HTTP_BR);
+	requestStr += ("mf = " + String(motionFlag) + HTTP_BR);
+	requestStr += ("mti = " + String(motionTimer.getIntervalMs()) + HTTP_BR);
+	requestStr += ("lts = " + String(lights->ledTimerIsStarted()) + HTTP_BR);
+	requestStr += ("moisPrst = " + String(soilMoisturePercent) + HTTP_BR);
+	
 	
 	
 	response.sendString(requestStr);
@@ -382,94 +388,123 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 
 }
 
-void ICACHE_FLASH_ATTR handleIr(HttpRequest &request, HttpResponse &response) {
+void handleIr(HttpRequest &request, HttpResponse &response) {
 
-		response.setContentType(ContentType::HTML);
-		response.sendString(OK_RESPONCE);
+	sendResponce(response);
 	if (request.getQueryParameter("code").length() > 0) {
 		unsigned long code = request.getQueryParameter("code").toInt();
+IRsend irsend(14);
 		irsend.sendNEC(code, 32);
 ////Serial.print(i); //Serial.print("="); //Serial.println(code);
 
-		delay(1);
+	//	delay(1);
 	}
-	if (request.getPostParameter("raw").length() > 0) {
-		int IR_ONE_SPACE = 1200;
-		int IR_ZERO_SPACE = 450;
-		int IR_BIT_MARK = 450;
-		int IR_PAUSE_SPACE = 0;
-		int IR_HEADER_MARK = 1650;
-		int IR_HEADER_SPACE = 1700;
-		unsigned int l;
-		String str = request.getPostParameter("raw");
-//Serial.println("          OK     ");
-		char symbols[1000];
-		l = str.length() + 5;
-//Serial.println(str);
-		irSender.space(0);
-		irSender.setFrequency(38);
-		str.toCharArray(symbols, 300);
-//while (char symbol = *symbols) {
-	//	HW_pwm.setPeriod(0);     ----------это нужное
-	//	ledTimer.stop();       ----------это нужное
-	//	tempTimer.stop();         ----------это нужное
-	//	motionTimer.stop();        ----------это нужное
-		delay(10);
-		irSender.space(0);
-		irSender.mark(IR_HEADER_MARK);
-//irSender.space(IR_HEADER_SPACE);
-//for (int qw = 0; qw < 5; qw++) {
-		for (int i = 0; i < l; i++) {
-			//symbols++;
-
-			//str.toCharArray(symbols, 2);
-			//char symbol = str.substring(0,1).toChar;
-			//str.remove(0, 1);
-			////Serial.print("i ");//Serial.println(i);
-
-			////Serial.print("symbols ");//Serial.println(symbols[i]);
-			////Serial.print("symbols ");//Serial.println(symbols[i]);
-			switch (symbols[i]) {
-
-			case '1':
-				irSender.mark(IR_BIT_MARK);
-				irSender.space(IR_ONE_SPACE);
-				////Serial.println("send 1 ");
-
-				break;
-			case '0':
-				irSender.mark(IR_BIT_MARK);
-				irSender.space(IR_ZERO_SPACE);
-				////Serial.println("send 0 ");
-				break;
-			case 'W':
-				irSender.mark(IR_PAUSE_SPACE);
-				break;
-			case 'H':
-				irSender.mark(IR_HEADER_MARK);
-				////Serial.println("send H ");
-				break;
-			case 'h':
-				irSender.space(IR_HEADER_SPACE);
-				////Serial.println("send h ");
-				break;
-			}
-		}
-		irSender.space(0);
-
-//Serial.println("          OK     ");
-
-		irSender.space(0);
-
-	}
+//	if (request.getPostParameter("raw").length() > 0) {
+//		IRSenderBitBang irSender(14);
+//		int IR_ONE_SPACE = 1200;
+//		int IR_ZERO_SPACE = 450;
+//		int IR_BIT_MARK = 450;
+//		int IR_PAUSE_SPACE = 0;
+//		int IR_HEADER_MARK = 1650;
+//		int IR_HEADER_SPACE = 1700;
+//		unsigned int l;
+//		String str = request.getPostParameter("raw");
+////Serial.println("          OK     ");
+//		char symbols[1000];
+//		l = str.length() + 5;
+////Serial.println(str);
+//		irSender.space(0);
+//		irSender.setFrequency(38);
+//		str.toCharArray(symbols, 300);
+////while (char symbol = *symbols) {
+//	//	HW_pwm.setPeriod(0);     ----------это нужное
+//	//	ledTimer.stop();       ----------это нужное
+//	//	tempTimer.stop();         ----------это нужное
+//	//	motionTimer.stop();        ----------это нужное
+//		delay(10);
+//		irSender.space(0);
+//		irSender.mark(IR_HEADER_MARK);
+////irSender.space(IR_HEADER_SPACE);
+////for (int qw = 0; qw < 5; qw++) {
+//		for (int i = 0; i < l; i++) {
+//			//symbols++;
+//
+//			//str.toCharArray(symbols, 2);
+//			//char symbol = str.substring(0,1).toChar;
+//			//str.remove(0, 1);
+//			////Serial.print("i ");//Serial.println(i);
+//
+//			////Serial.print("symbols ");//Serial.println(symbols[i]);
+//			////Serial.print("symbols ");//Serial.println(symbols[i]);
+//			switch (symbols[i]) {
+//
+//			case '1':
+//				irSender.mark(IR_BIT_MARK);
+//				irSender.space(IR_ONE_SPACE);
+//				////Serial.println("send 1 ");
+//
+//				break;
+//			case '0':
+//				irSender.mark(IR_BIT_MARK);
+//				irSender.space(IR_ZERO_SPACE);
+//				////Serial.println("send 0 ");
+//				break;
+//			case 'W':
+//				irSender.mark(IR_PAUSE_SPACE);
+//				break;
+//			case 'H':
+//				irSender.mark(IR_HEADER_MARK);
+//				////Serial.println("send H ");
+//				break;
+//			case 'h':
+//				irSender.space(IR_HEADER_SPACE);
+//				////Serial.println("send h ");
+//				break;
+//			}
+//		}
+//		irSender.space(0);
+//
+////Serial.println("          OK     ");
+//
+//		irSender.space(0);
+//
+//	}
 	//HW_pwm.setPeriod(period);  ----------это нужное
 	//ledTimer.start();         ----------это нужное
 	//tempTimer.start();        ----------это нужное
 	//motionTimer.start();        ----------это нужное
-			sendLog("handleIr");
+		//	sendLog("handleIr");
 }
 
-void ICACHE_FLASH_ATTR sendTemp() {
+void sendTemp() {
+	if(++soilMoistureCheckCounter >= 6)
+	{
+		soilMoistureCheckCounter = 0;
+		static const int airVal = 865;
+		static const int waterVal = 645;
+		static const int sensorPin = A0;
+		int measuredVal = analogRead(sensorPin);
+		int newSoilMoisturePercent = map(measuredVal, airVal, waterVal, 0, 100);
+		//if (soilMoisturePercent != newSoilMoisturePercent && alive && newSoilMoisturePercent)
+		{
+			soilMoisturePercent = newSoilMoisturePercent;
+			if(soilMoisturePercent < 0)
+			{
+				soilMoisturePercent = 0;
+			}else if(soilMoisturePercent > 100)
+			{
+				soilMoisturePercent = 100;			
+			}
+			String resQuery;
+			resQuery += "moistureChanged&mea=";
+			resQuery += soilMoisturePercent;
+			String strName;
+			strName += "temp";
+			strName += name;
+			downloadString(resQuery, strName);
+		}
+	}
+	
 	uint8_t a;
 	//uint64_t info;
 //	MeteoConfig cfg = loadConfig();
@@ -592,21 +627,23 @@ void ICACHE_FLASH_ATTR sendTemp() {
 }
 
 void ICACHE_FLASH_ATTR handleRC(HttpRequest &request, HttpResponse &response) {
-			sendLog("handleRC");
-
-		response.setContentType(ContentType::HTML);
-		response.sendString(OK_RESPONCE);
+		//	sendLog("handleRC");
+	sendResponce(response);
 
 	if (request.getQueryParameter("code").toInt() > 0
 			&& request.getQueryParameter("bit").toInt() < 70
-			&& request.getQueryParameter("bit").toInt() > 0) {
+			&& request.getQueryParameter("bit").toInt() > 0) 
+	{
+				
+		RCSwitch mySwitch;
+		mySwitch.enableTransmit(12);
 		mySwitch.send(request.getQueryParameter("code").toInt(),
 				request.getQueryParameter("bit").toInt());
-		delay(1);
+		//delay(1);
 	}
 }
 
-void ICACHE_FLASH_ATTR handleOTA(HttpRequest &request, HttpResponse &response) {
+void handleOTA(HttpRequest &request, HttpResponse &response) {
 
 	sendLog("handleOTA");
 	if (request.getQueryParameter("start") == "now") {
@@ -630,11 +667,11 @@ void ICACHE_FLASH_ATTR handleOTA(HttpRequest &request, HttpResponse &response) {
 
 void aliveSend() {
 	Serial.println(APP_VERSION);
-	needSendIp = true;
 	
 	aliveTimer.stop();
 	aliveTimer.setIntervalMs(1000 * 5);
 	aliveTimer.start();
+	sendIp();
 }
 
 void startWebServer() {
@@ -653,7 +690,7 @@ void startWebServer() {
 
 //Serial.println(WifiStation.getIP());
 
-	needSendIp = true;
+	sendIp();
 
 	//}
 //	StartaliveTimer.start();
@@ -663,7 +700,7 @@ void startWebServer() {
 	//delay(10);
 	//sendTemp();
 	aliveSend();
-	delay(10);
+	//delay(10);
 	sendTemp();
 
 }
@@ -683,24 +720,9 @@ void connectOk() {
 //}
 }
 
-
-void ICACHE_FLASH_ATTR coreHandler()
-{
-		if (!WifiStation.isConnected()) {
-
-		if (needReconnect) {
-			//Serial.println("DISCONECTED...");
-			//WifiStation.connect();
-			WifiStation.waitConnection(connectOk, 125, rebootNow);
-
-			needReconnect = false;
-		}
-
-	}
-	if (needSendIp) {
+void sendIp()
+{ 
 		name = loadConfig(nameFile).toInt();
-//MeteoConfig cfg = loadConfig();
-//char* ip = WifiStation.getIP().toString();;
 		if (name == 0) {
 			String query;
 			query+= "WhoAmi&id=";
@@ -722,12 +744,25 @@ void ICACHE_FLASH_ATTR coreHandler()
 			query+= APP_VERSION;
 			
 			downloadString(query);
-		}
-//delay(100);
-		needSendIp = false;
-        alive = 0;
-	}
+		}	
+}
 
+void coreHandler()
+{
+	if (!WifiStation.isConnected() && needReconnect) 
+	{
+		
+		WifiStation.waitConnection(connectOk, 125, rebootNow);
+		needReconnect = false;
+	}
+}
+
+void vCallback(float _newV)
+{
+	if(int(_newV*100) == int(voff*100))
+	{
+		motionFlag = 0;
+	}
 }
 
 void motion() {
@@ -750,6 +785,7 @@ void motion() {
 }
 
 void init() {
+ lights = new LightHandler(pins, &white, &vCallback);
 	//lights = LightHandler::getInstance(pins, &white, &voff, &motionFlag);
 //	lights = &LightHandler(pins, &white, &voff, &motionFlag);
 	//spiffs_mount();
@@ -763,13 +799,11 @@ void init() {
 	Serial.systemDebugOutput(0);   		// Debug output to serial
 //	ledPWM.initialize();
 			//pinMode(LED_PIN, OUTPUT);
-	mySwitch.enableTransmit(12);
 	//Serial.print("Duty: ");
 	//Serial.println(HW_pwm.getMaxDuty());
 	WifiStation.enable(true);
 	WifiStation.config(WIFI_SSID, WIFI_PWD);
 	WifiAccessPoint.enable(false);
-	//irsend.begin();
 	ReadTemp.Init(16);  // select PIN It's required for one-wire initialization!
 	ReadTemp.StartMeasure(); // first measure start,result after 1.2 seconds * number of sensors
 //	int slot = rboot_get_current_rom();
@@ -787,16 +821,16 @@ void init() {
 	System.setCpuFrequency(eCF_160MHz);
 	//Serial.setCallback(serialCallBack);
 	delay(10);
-	tempTimer.initializeMs(1000 * 10, sendTemp).start();
+	tempTimer.initializeMs(1000 * 20, sendTemp).start();
 	motionTimer.initializeMs(50, motion);
 	aliveTimer.initializeMs(1000 * 5, aliveSend);
 	heatDisableTimer.initializeMs(1000 * 5, whiteOff);
 	dieTimer.initializeMs(1000 * 60 * 9, reboot).start();
 	rebootTimer.initializeMs(1000 * 3, rebootNow);
 	heatEnableTimer.initializeMs(0, heatOnWitePin);
-	coreTimer.initializeMs(1000, coreHandler).start();
+	coreTimer.initializeMs(1000*10, coreHandler).start();
 
-	minimalTemp = loadConfig(tempFile).toInt();
+	minimalTemp = loadConfig(tempFile).toFloat();
 	heatSec = loadConfig(secondsFile).toFloat();
 	whiteFreezeSec = loadConfig(freezeSecondsFile).toFloat();
 
