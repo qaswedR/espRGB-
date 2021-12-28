@@ -33,7 +33,7 @@
 #define g_pin  5
 #define b_pin  0
 //#define s 100    //из hsv
-
+#define ir_pin 14
 #define HSV_TO_STATE(h,s,v) 
 
 /*#define IR_ONE_SPACE    1200 /////TEST
@@ -49,7 +49,7 @@ DS18S20 ReadTemp;
 Timer aliveTimer;
 Timer motionTimer;
 Timer tempTimer;
-Timer heatDisableTimer, dieTimer, rebootTimer, heatEnableTimer, coreTimer;
+Timer heatDisableTimer, dieTimer, heatEnableTimer, coreTimer;
 //Livolo livolo(12);
 //DriverPWM ledPWM;
 uint8_t pins[4] = { r_pin, g_pin, b_pin, w_pin }; // List of pins that you want to connect to pwm
@@ -84,6 +84,7 @@ bool HeatMode = false;
 bool needReboot = false;
 int soilMoisturePercent = 0;
 uint8_t soilMoistureCheckCounter = 100;
+int irpinState = 0;
 
 ///////////////FUNCTIONS
 void ICACHE_FLASH_ATTR onDataSent(HttpClient& client, bool successful);
@@ -143,17 +144,29 @@ void  heatOnWitePin() {
 void  reboot(){
 	System.restart();	
 }
-void ICACHE_FLASH_ATTR rebootNow() {
+void startDieTimer()
+{
+		dieTimer.stop();
+		dieTimer.setIntervalMs(1500);
+		dieTimer.start();	
+}
+void ICACHE_FLASH_ATTR rebootByWifi() {
 
-//	saveConfig(nameFile, String(name));
-							needReboot = true;
-	//System.restart();	
-	
-			sendLog("rebootNow");
-							
-					//		delay(500);
-	//Serial.println("REBOOT...");
-	//System.restart();
+		lights->setVNew(0.0);
+		lights->setHNew(0.0);
+		lights->setSNew(100.0);
+		lights->setMode(2);
+	    sendLog("rebootByWifi");
+		startDieTimer();
+}
+void ICACHE_FLASH_ATTR rebootByHttp() {
+
+		lights->setVNew(0.0);
+		lights->setHNew(120.0);
+		lights->setSNew(100.0);
+		lights->setMode(2);
+	    sendLog("rebootByHttp");
+		startDieTimer();
 }
 void  OtaUpdate() {
 
@@ -288,6 +301,11 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 		saveConfig(tempFile, String(minimalTemp));
 	}
 	
+	if (request.getQueryParameter("irpin").length() > 0) {
+		irpinState = request.getQueryParameter("irpin").toInt();
+		digitalWrite(ir_pin, irpinState);
+	}
+	
 	if (request.getQueryParameter("currV").length() > 0) {
 		motionV = request.getQueryParameter("currV").toInt();
 	}
@@ -308,10 +326,10 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 	if (request.getQueryParameter("ok").length() > 0) {
 		if (request.getQueryParameter("ok").toInt() == 1) {
 			alive = 1;
-		//	reboot = 0;
-		aliveTimer.stop();
-		aliveTimer.setIntervalMs(1000 * 60);
-		aliveTimer.start();
+			//	reboot = 0;
+			aliveTimer.stop();
+			aliveTimer.setIntervalMs(1000 * 60);
+			aliveTimer.start();
 			dieTimer.stop();
 		}
 	}
@@ -358,7 +376,7 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 	requestStr += ("alive = " + String(alive) + HTTP_BR);
 	requestStr += ("valueMSensor = " + String(valueMSensor) + HTTP_BR);
 	requestStr += ("f version rom1 = " + String(APP_VERSION) + HTTP_BR); //1.11 добавил смену сигнала датчика движения(1 или 0)
-	requestStr += ("h version  = 1.00  <br/>"); //ROM_0_URL
+	//requestStr += ("h version  = 1.00  <br/>"); //ROM_0_URL
 	requestStr += ("path = " + String(ROM_0_URL) + HTTP_BR); //ROM_0_URL
 	requestStr += ("h = " + String(lights->getH()) + HTTP_BR); //ROM_0_URL
 	requestStr += ("s = " + String(lights->getS()) + HTTP_BR); //ROM_0_URL
@@ -380,11 +398,12 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 	requestStr += ("mti = " + String(motionTimer.getIntervalMs()) + HTTP_BR);
 	requestStr += ("lts = " + String(lights->ledTimerIsStarted()) + HTTP_BR);
 	requestStr += ("moisPrst = " + String(soilMoisturePercent) + HTTP_BR);
+	requestStr += ("irpinState = " + String(irpinState) + HTTP_BR);
 	
 	
 	
 	response.sendString(requestStr);
-			sendLog("config request");
+	//sendLog("config_request");
 
 }
 
@@ -393,14 +412,14 @@ void handleIr(HttpRequest &request, HttpResponse &response) {
 	sendResponce(response);
 	if (request.getQueryParameter("code").length() > 0) {
 		unsigned long code = request.getQueryParameter("code").toInt();
-IRsend irsend(14);
+IRsend irsend(ir_pin);
 		irsend.sendNEC(code, 32);
 ////Serial.print(i); //Serial.print("="); //Serial.println(code);
 
 	//	delay(1);
 	}
 //	if (request.getPostParameter("raw").length() > 0) {
-//		IRSenderBitBang irSender(14);
+//		IRSenderBitBang irSender(ir_pin);
 //		int IR_ONE_SPACE = 1200;
 //		int IR_ZERO_SPACE = 450;
 //		int IR_BIT_MARK = 450;
@@ -485,16 +504,16 @@ void sendTemp() {
 		static const int sensorPin = A0;
 		int measuredVal = analogRead(sensorPin);
 		int newSoilMoisturePercent = map(measuredVal, airVal, waterVal, 0, 100);
-		//if (soilMoisturePercent != newSoilMoisturePercent && alive && newSoilMoisturePercent)
+		if(newSoilMoisturePercent < 0)
+		{
+			newSoilMoisturePercent = 0;
+		}else if(newSoilMoisturePercent > 100)
+		{
+			newSoilMoisturePercent = 100;			
+		}
+		if (soilMoisturePercent != newSoilMoisturePercent && alive && newSoilMoisturePercent)
 		{
 			soilMoisturePercent = newSoilMoisturePercent;
-			if(soilMoisturePercent < 0)
-			{
-				soilMoisturePercent = 0;
-			}else if(soilMoisturePercent > 100)
-			{
-				soilMoisturePercent = 100;			
-			}
 			String resQuery;
 			resQuery += "moistureChanged&mea=";
 			resQuery += soilMoisturePercent;
@@ -539,9 +558,18 @@ void sendTemp() {
 						newT1 = currentTemp;
 				//	}
 				}
+				//char buffer[10];
+				//int ret = sprintf(buffer, "%f_%d", currentTemp, a);
+				//if(ret > 0)
+				//	sendLog(buffer);
 				////Serial.print(ReadTemp.GetCelsius(a));
 
 			} else {
+				//float currentTemp = ReadTemp.GetCelsius(a);
+				//char buffer[30];
+				//int ret = sprintf(buffer, "not_val_%f", currentTemp);
+				//if(ret > 0)
+				//	sendLog(buffer);
 
 			}
 		}
@@ -553,15 +581,27 @@ void sendTemp() {
 
 			if (alive)
 			{
-	             String resQuery;
-	             resQuery += "tempChanged&t=";
-	             resQuery += newTemp1 ? String(newT1) : "";
-	             resQuery += "&t2=";
-	             resQuery += newTemp2 ? String(newT2) : "";
-	             String strName;
-				 strName += "temp";
-				 strName += name;
-				downloadString(resQuery, strName);
+				//char resQueryBuffer[100];
+				//int ret = sprintf(resQueryBuffer, "tempChanged&t=%f&t2=%f", newT1, newT2);
+	            String resQuery;
+	            resQuery += "tempChanged&t=";
+	            resQuery += newTemp1 ? String(newT1) : "";
+	            resQuery += "&t2=";
+	            resQuery += newTemp2 ? String(newT2) : "";
+				//if(ret > 0)
+				//{
+				//	char strNameBuffer[10];
+				//	ret = sprintf(strNameBuffer, "temp%d", name);
+				//	if(ret > 0)
+				//	{
+				//		downloadString(resQueryBuffer, strNameBuffer);						
+				//	}
+				//}
+	            String strName;
+				strName += "temp";
+				strName += name;
+				
+			    downloadString(resQuery, strName);
 			}
 
 			if (minimalTemp > 0 && HeatMode && alive == 0)
@@ -656,11 +696,7 @@ void handleOTA(HttpRequest &request, HttpResponse &response) {
 	if (request.getQueryParameter("restart") == "now") {
 		response.setContentType(ContentType::HTML);
 		response.sendString("Restart.\n <br/>");
-		dieTimer.stop();
-		dieTimer.setIntervalMs(1000);
-		dieTimer.start();
-		rebootTimer.start();
-		lights->setVNew(0.0);
+		rebootByHttp();
 	}
 
 }
@@ -752,7 +788,8 @@ void coreHandler()
 	if (!WifiStation.isConnected() && needReconnect) 
 	{
 		
-		WifiStation.waitConnection(connectOk, 125, rebootNow);
+		WifiStation.waitConnection(connectOk, 125, rebootByWifi);
+	//	WifiStation.connect();
 		needReconnect = false;
 	}
 }
@@ -775,11 +812,13 @@ void motion() {
 			}
 			motionFlag = 1;				
 		}
-		motionTimer.setIntervalMs(1000*10);
+		motionTimer.setIntervalMs(1000*5);
+		motionTimer.start();
 		
 		downloadString("motionDetected&");
 	}else{
 		motionTimer.setIntervalMs(50);
+		motionTimer.start();
 	} 
 
 }
@@ -792,9 +831,9 @@ void init() {
 	pinMode(10, INPUT);
 	pinMode(w_pin, 1);
 	digitalWrite(w_pin, 0);
-	pinMode(14, 1);
+	pinMode(ir_pin, 1);
 	pinMode(13, 1);
-	digitalWrite(14, 0);
+	digitalWrite(ir_pin, 0);
 	Serial.begin(SERIAL_BAUD_RATE);   		// 115200 by default
 	Serial.systemDebugOutput(0);   		// Debug output to serial
 //	ledPWM.initialize();
@@ -816,7 +855,7 @@ void init() {
 	}
 
 	WifiStation.connect();
-	WifiStation.waitConnection(connectOk, 50, rebootNow);
+	WifiStation.waitConnection(connectOk, 50, rebootByWifi);
 
 	System.setCpuFrequency(eCF_160MHz);
 	//Serial.setCallback(serialCallBack);
@@ -826,7 +865,6 @@ void init() {
 	aliveTimer.initializeMs(1000 * 5, aliveSend);
 	heatDisableTimer.initializeMs(1000 * 5, whiteOff);
 	dieTimer.initializeMs(1000 * 60 * 9, reboot).start();
-	rebootTimer.initializeMs(1000 * 3, rebootNow);
 	heatEnableTimer.initializeMs(0, heatOnWitePin);
 	coreTimer.initializeMs(1000*10, coreHandler).start();
 

@@ -2,7 +2,7 @@
 #include "../include/configuration.h"
 
 #define period  1000       // умножить на 65 дл¤ 1024. duty = 66666
-
+#define hue_increment 0.75
   void HSVtoRGB(float *r, float *g, float *b, float h, float s, float v);
 
   static LightHandler *Instance = nullptr;
@@ -13,13 +13,13 @@ LightHandler::LightHandler(uint8_t *pins, float *_white, callBackSetV _callback)
  callback(_callback),
  pinPtr(pins)
  {
-		Instance = this;
-   HW_pwm = new HardwarePWM(pins, 4);
-   HW_pwm->setPeriod(period);
-   setDuty(HW_pwm->getMaxDuty());
-        Instance->ledTimer.initializeMs(10, [](){
-			Instance->loop();
-		}).start();
+    Instance = this;
+    HW_pwm = new HardwarePWM(pins, 4);
+    HW_pwm->setPeriod(period);
+    setDuty(HW_pwm->getMaxDuty());
+    Instance->ledTimer.initializeMs(10, [](){
+												Instance->loop();
+											}).start();
  }
   
 void LightHandler::handleHsvImpl(HttpRequest &request, HttpResponse &response)
@@ -98,45 +98,61 @@ void LightHandler::handleHsvImpl(HttpRequest &request, HttpResponse &response)
 	String paramS = request.getQueryParameter("s");
 	float iparamS = paramS.toFloat ();
 
-	if (paramH.length() > 0 && iparamH >= 0 && iparamH <= 360) {
-		if(paramMode.length() > 0 && iparamMode > 0 && iparamMode <= 10) {
-			mode = iparamMode;
-			h_new = iparamH;
-			}
-			else{
-				h = iparamH;
-				}
-		}else if(paramMode.length() > 0 && iparamMode > 0 && iparamMode <= 10)
+	if (paramH.length() > 0 && iparamH >= 0 && iparamH <= 360) 
+	{
+		if(paramMode.length() > 0 && iparamMode >= 0 && iparamMode <= 10) 
 		{
-			mode = iparamMode;	
+			mode = iparamMode;
+			if(mode)
+			{
+				h_new = iparamH;
+				if(h_new == 360)
+				{
+					h_new = 359.9;
+				}
+			}
+			else
+			{
+				h = iparamH;				
+			}
+		}
+		else
+		{
+			h = iparamH;
+		}
+	}
+	else if(paramMode.length() > 0 && iparamMode >= 0 && iparamMode <= 10)
+	{
+		mode = iparamMode;	
+	}
+	
+	if (paramS.length() == 0) {
+		if(white != 2)
+		{
+	       if(mode == 2)
+		   {
+				s_new = 100;
+		   }
+		   else
+		   {
+				s = 100;
+		   }
 		}
 		
-			if (paramS.length() == 0) {
-				if(white != 2)
-				{
-			       if(mode == 2)
-				   {
-				    s_new = 100;
-				   }
-				   else
-				   {
-				   s = 100;
-				   }
-				}
-				
-			} else {
-				if (iparamS >= 0 && iparamS <= 100) {
-				if(mode == 2)
-				{
-				 s_new = iparamS;
-				}
-				else
-				{
-					s = iparamS;
-				}
-				}
+	} else 
+	{
+		if (iparamS >= 0 && iparamS <= 100) {
+			if(mode == 2)
+			{
+				s_new = iparamS;
 			}
-			
+			else
+			{
+				s = iparamS;
+			}
+		}
+	}
+		
 	
 	{
 		ledTimer.start();
@@ -166,60 +182,81 @@ void LightHandler::loop() {
 		}
 
 		case 1:                          //h туда сюда
-			// если count = 1
 		{
 			needStop = false;
+			h += 0.2;
+			if (h > 359.9) {
+				h = 0;
+			}
+			
 			if (countUp == true) {
-				h += 0.2;
-				if (h >= 359) {
-					h = 359;
+				s += 0.3;
+				if (s >= 100) {
+					s = 100;
 					countUp = false;
 				}
 			} else {
-				h -= 0.2;
-				if (h <= 0) {
-					h = 0;
+				s -= 0.3;
+				if (s <= 70) {
+					s = 70;
 					countUp = true;
 				}
 			}
+			
 			break;
 		}
-		case 2:   		// выход h на заданынй
+		case 2:   		// выход h & s на заданынй
 		{
-
-			if (h < h_new) {
-			needStop = false;
-				h+= 1;
-				if (h >= h_new) {
-					h = h_new;
-					//if (v == v_new)
-					//ledTimer.stop();
+			float diff = h - h_new;
+			
+			if(diff > 0)
+			{
+			    needStop = false;
+				if(diff > 180)
+				{
+					h+= hue_increment;
+				}else{
+					h-= hue_increment;	
 				}
+			}else if(diff < 0)
+			{
+			    needStop = false;
+				if(diff < -180)
+				{
+					h-= hue_increment;	
+				}else{
+					h+= hue_increment;
+				}
+				
 			}
-
-			if (h > h_new) {
-			needStop = false;
-				h-= 1;
-				if (h <= h_new) {
-					h = h_new;
-					//if (v == v_new)
-					//ledTimer.stop();
-				}
+			if(h >= 360)
+			{
+				h = 0.1;
+			}
+			else if(h < 0)
+			{
+				h = 359.9;
 			}
 			
+			if(h <= (h_new + hue_increment) && h >= (h_new - hue_increment))
+			{
+				h = h_new;
+				needStop = true;
+			}
+
+			
 			if (s < s_new) {
-			needStop = false;
-				s+= 0.5;
+				needStop = false;
+				s+= 0.65;
 				if (s >= s_new) {
 					s = s_new;
 					//if (v == v_new)
 					//ledTimer.stop();
 				}
-			}
-
-			if (s > s_new) {
+			}else if (s > s_new)
+			{
 			    needStop = false;
-				s-= 0.5;
+				s-= 0.65;
 				if (s <= s_new) {
 					s = s_new;
 					//if (v == v_new)
@@ -229,7 +266,7 @@ void LightHandler::loop() {
 		///	if (h == h_new)
 			//	if (v == v_new)
 					//ledTimer.stop();
-					break;
+			break;
 		}
 		case 3:   		// выход h на заданынй
 		{
