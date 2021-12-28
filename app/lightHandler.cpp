@@ -166,23 +166,6 @@ void LightHandler::handleHsv(HttpRequest &request, HttpResponse &response)
 	Instance->handleHsvImpl(request, response);
 }
 
-void LightHandler::loop()
-{
-    counter_light++;
-    counterSmooth++;
-    bool needStop = true;
-    if (counter_light >= d_light)
-    {
-        switch (mode)
-        {
-
-        case 0: //мгновенное включение цвета и плавное ¤ркости
-        {
-            //if (v == v_new)
-            //ledTimer.stop();
-            break;
-        }
-
   
 void LightHandler::loop() {
 	counter_light++;
