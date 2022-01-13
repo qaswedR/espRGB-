@@ -24,8 +24,8 @@
 
 // If you want, you can define WiFi settings globally in Eclipse Environment Variables
 #ifndef WIFI_SSID
-#define WIFI_SSID "SmartHome777" // Put you SSID and Password here
-#define WIFI_PWD "haioqGFa"
+#define WIFI_SSID "777DarkDima777" // Put you SSID and Password here
+#define WIFI_PWD "12345679"
 #endif
 
 //#define LED_PIN 15 // GPIO number
@@ -604,6 +604,60 @@ void sendTemp() {
 			    downloadString(resQuery, strName);
 			}
 
+			if (minimalTemp > 0 && HeatMode && alive == 0)
+
+			{
+				if (!newTemp1 && newTemp2) {
+					newT1 = newT2;
+				} else if (!newTemp2 && newTemp1) {
+					newT2 = newT1;
+				}
+
+				//if temp high - enable double time freeze
+				if (newT1 > minimalTemp && newT2 > minimalTemp) {
+
+					//если подогревается
+					if (halfFreeze) {
+						//выключаем обогрев
+						halfFreeze = false;
+						whiteFreezeSec = defoltFreezeSec;
+					}
+
+					//если не охлаждается
+					if (!doubleFreeze) {
+						//охлаждаем
+						doubleFreeze = true;
+						defoltFreezeSec = whiteFreezeSec;
+						//	whiteFreezeSec += whiteFreezeSec / 3;
+					}
+					//включаем подогрев
+					//if (whiteFreezeSec + 0.1 > heatSec) {
+					whiteFreezeSec += 0.1;
+					//	}
+
+					//если температура ниже выставленной
+				} else {
+					//если включено охлаждение
+					if (doubleFreeze) {
+						//выключаем охлаждение
+						doubleFreeze = false;
+						whiteFreezeSec = defoltFreezeSec;
+					} else {
+						//если не включен подогрев
+						if (!halfFreeze) {
+							//включаем подогрев
+							halfFreeze = true;
+							defoltFreezeSec = whiteFreezeSec;
+						}
+						//включаем подогрев
+						if (whiteFreezeSec - 0.1 > heatSec) {
+							whiteFreezeSec -= 0.1;
+						}
+
+					}
+
+				}
+			}
 		} 
 	} else {
 
@@ -769,14 +823,6 @@ void motion() {
 
 }
 
-void showLights()
-{
-	lights->setVNew(100);
-	lights->setSNew(1);
-	lights->setMode(2);
-	WifiStation.waitConnection(connectOk, 50, rebootByWifi);
-}
-
 void init() {
  lights = new LightHandler(pins, &white, &vCallback);
 	//lights = LightHandler::getInstance(pins, &white, &voff, &motionFlag);
@@ -809,8 +855,7 @@ void init() {
 	}
 
 	WifiStation.connect();
-	WifiStation.waitConnection(connectOk, 15, showLights);
-	//WifiStation.waitConnection(connectOk, 50, rebootByWifi);
+	WifiStation.waitConnection(connectOk, 50, rebootByWifi);
 
 	System.setCpuFrequency(eCF_160MHz);
 	//Serial.setCallback(serialCallBack);
