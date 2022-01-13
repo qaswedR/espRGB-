@@ -1,4 +1,4 @@
-#define APP_VERSION "1.18.66"
+#define APP_VERSION "1.18.75"
 
 
 /*

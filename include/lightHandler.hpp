@@ -17,7 +17,7 @@ enum pinsEnum{
   WhitePin
 };
 
-typedef void (*callBackSetV)(float v_new);
+typedef void (*callBackSetV)();
 
 class LightHandler {
 public:

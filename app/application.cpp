@@ -73,7 +73,6 @@ float oldT1;
 float newT1, newT2;
 float told = 0;
 float motionV = 0;
-float voff = 0.0;
 bool alive = 0;
 rBootHttpUpdate* otaUpdater = 0;
 static bool needReconnect = false;
@@ -284,7 +283,7 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 	if (request.getQueryParameter("name").length() > 0) {
 		name = request.getQueryParameter("name").toInt();
 
-		saveConfig(nameFile, String(name));
+		saveName(String(name));
 		aliveTimer.stop();
 		aliveTimer.setIntervalMs(1000 * 5);
 		aliveTimer.start();
@@ -298,7 +297,7 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 
 	if (request.getQueryParameter("temp").length() > 0) {
 		minimalTemp = request.getQueryParameter("temp").toFloat();
-		saveConfig(tempFile, String(minimalTemp));
+	//	saveConfig(tempFile, String(minimalTemp));
 	}
 	
 	if (request.getQueryParameter("irpin").length() > 0) {
@@ -312,13 +311,13 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 
 	if (request.getQueryParameter("fs").length() > 0) {
 		whiteFreezeSec = request.getQueryParameter("fs").toFloat();
-		saveConfig(freezeSecondsFile, String(whiteFreezeSec));
+	//	saveConfig(freezeSecondsFile, String(whiteFreezeSec));
 		updateHeater();
 	}
 
 	if (request.getQueryParameter("hs").length() > 0) {
 		heatSec = request.getQueryParameter("hs").toFloat();
-		saveConfig(secondsFile, String(heatSec));
+	//	saveConfig(secondsFile, String(heatSec));
 		updateHeater();
 
 	}
@@ -359,11 +358,6 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 		lights->setSmoothD(request.getQueryParameter("smoothD").toInt());
 	}
 	
-	if (request.getQueryParameter("voff").length() > 0)
-	{
-		 voff = request.getQueryParameter("voff").toFloat();
-		
-	}
 		
 	
 
@@ -372,7 +366,6 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 	requestStr += "id = " + String(system_get_chip_id()) + HTTP_BR;
 	requestStr += ("mWFlag = " + String(motionWorkFlag) + HTTP_BR);
 	//requestStr += ("smoothD = " + String(smoothD) + HTTP_BR);
-	requestStr += ("voff = " + String(voff) + HTTP_BR);
 	requestStr += ("alive = " + String(alive) + HTTP_BR);
 	requestStr += ("valueMSensor = " + String(valueMSensor) + HTTP_BR);
 	requestStr += ("f version rom1 = " + String(APP_VERSION) + HTTP_BR); //1.11 добавил смену сигнала датчика движения(1 или 0)
@@ -758,7 +751,6 @@ void connectOk() {
 
 void sendIp()
 { 
-		name = loadConfig(nameFile).toInt();
 		if (name == 0) {
 			String query;
 			query+= "WhoAmi&id=";
@@ -794,16 +786,19 @@ void coreHandler()
 	}
 }
 
-void vCallback(float _newV)
+void vCallback()
 {
-	if(int(_newV*100) == int(voff*100))
+	if(motionWorkFlag)
 	{
 		motionFlag = 0;
+		motionTimer.setIntervalMs(50);
+		motionTimer.start();
 	}
 }
 
 void motion() {
-	if (digitalRead(10) == valueMSensor) {
+	if (digitalRead(10) == valueMSensor) 
+	{
 		if (!motionFlag)
 		{
 			//	if(v_new < 0.9 && v < 0.9)
@@ -812,19 +807,22 @@ void motion() {
 			}
 			motionFlag = 1;				
 		}
-		motionTimer.setIntervalMs(1000*5);
+		motionTimer.setIntervalMs(1000*10);
 		motionTimer.start();
 		
 		downloadString("motionDetected&");
-	}else{
-		motionTimer.setIntervalMs(50);
-		motionTimer.start();
-	} 
-
+	}else
+	{
+		if(motionFlag)
+		{
+			motionFlag = 0;
+			motionTimer.setIntervalMs(50);
+			motionTimer.start();
+		}
+	}
 }
 
 void init() {
- lights = new LightHandler(pins, &white, &vCallback);
 	//lights = LightHandler::getInstance(pins, &white, &voff, &motionFlag);
 //	lights = &LightHandler(pins, &white, &voff, &motionFlag);
 	//spiffs_mount();
@@ -867,11 +865,14 @@ void init() {
 	dieTimer.initializeMs(1000 * 60 * 9, reboot).start();
 	heatEnableTimer.initializeMs(0, heatOnWitePin);
 	coreTimer.initializeMs(1000*10, coreHandler).start();
+	
+	name = loadName();
+	lights = new LightHandler(pins, &white, &vCallback);
 
-	minimalTemp = loadConfig(tempFile).toFloat();
-	heatSec = loadConfig(secondsFile).toFloat();
-	whiteFreezeSec = loadConfig(freezeSecondsFile).toFloat();
+//	minimalTemp = loadConfig(tempFile).toFloat();
+//	heatSec = loadConfig(secondsFile).toFloat();
+//	whiteFreezeSec = loadConfig(freezeSecondsFile).toFloat();
 
-	updateHeater();
+//	updateHeater();
 }
 

@@ -27,6 +27,13 @@ void LightHandler::handleHsvImpl(HttpRequest &request, HttpResponse &response)
 	//ledTimer.restart();
 		response.setContentType(ContentType::HTML);
 		response.sendString(OK_RESPONCE);
+	
+	String paramM = request.getQueryParameter("mot");
+	if (paramM.length() > 0 && paramM.toInt() == 0) 
+	{
+		callback();
+	}
+	
 	String paramWhite = request.getQueryParameter("white");
 	int iParamWhite = paramWhite.toInt();
 	if (paramWhite.length() > 0 && iParamWhite > 0 && iParamWhite <= 100) {
@@ -65,13 +72,14 @@ void LightHandler::handleHsvImpl(HttpRequest &request, HttpResponse &response)
 
 	String paramV = request.getQueryParameter("v");
 	float iparamV = paramV.toFloat();
+	
 
 	if (paramV.length() > 0) {
 		if (request.getQueryParameter("v_new").length() > 0) {
 			if (iparamV >= 0 && iparamV <= 100) {
 				v = iparamV;
 
-				saveConfig(vFile, String(v));
+			//	saveConfig(vFile, String(v));
 			}
 			if (request.getQueryParameter("v_new").toFloat () >= 0
 					&& request.getQueryParameter("v_new").toFloat () <= 100) {
@@ -80,8 +88,6 @@ void LightHandler::handleHsvImpl(HttpRequest &request, HttpResponse &response)
 			}
 		} else {
 			v_new = iparamV;
-			
-			callback(v_new);
 		}
 	} else {
 		if (request.getQueryParameter("v_new").length() > 0

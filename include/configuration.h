@@ -1,7 +1,7 @@
 #ifndef INCLUDE_CONFIGURATION_H_
 #define INCLUDE_CONFIGURATION_H_
 
-#include <user_config.h>
+//#include <user_config.h>
 #include <SmingCore/SmingCore.h>
 
 // If you want, you can define WiFi settings globally in Eclipse Environment Variables
@@ -32,6 +32,9 @@ enum fileType
 
 String loadConfig(fileType type);
 void saveConfig(fileType type, String strVal);
+
+int loadName();
+void saveName(String name);
 //extern void startWebClock();
 
 //extern MeteoConfig ActiveConfig;
