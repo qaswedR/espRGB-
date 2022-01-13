@@ -869,10 +869,10 @@ void init() {
 	name = loadName();
 	lights = new LightHandler(pins, &white, &vCallback);
 
-//	minimalTemp = loadConfig(tempFile).toFloat();
-//	heatSec = loadConfig(secondsFile).toFloat();
-//	whiteFreezeSec = loadConfig(freezeSecondsFile).toFloat();
+	minimalTemp = loadConfig(tempFile).toFloat();
+	heatSec = loadConfig(secondsFile).toFloat();
+	whiteFreezeSec = loadConfig(freezeSecondsFile).toFloat();
 
-//	updateHeater();
+	updateHeater();
 }
 

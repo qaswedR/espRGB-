@@ -55,7 +55,6 @@ byte checkZeroChar(char val)
 
 String loadConfig(fileType type)
 {
-	return "";
 	String fileName = getFileName(type);
 	if(fileExist(fileName))
 	{
@@ -68,7 +67,6 @@ String loadConfig(fileType type)
 
 void saveConfig(fileType type, String strVal)
 {
-	return;
 	String fileName = getFileName(type);
 
 	if(fileName.length())
