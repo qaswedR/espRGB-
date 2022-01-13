@@ -2,47 +2,96 @@
 
 #include <SmingCore/SmingCore.h>
 
-ParamsConfig ActiveConfig;
 
-ParamsConfig loadConfig() {
-	DynamicJsonBuffer jsonBuffer;
-	ParamsConfig cfg;
+String getFileName(fileType type)
+{
+	switch(type)
+	{
+	case nameFile:
+	{
+		return NameFile;
+	}
+	case tempFile:
+	{
+		return TempFile;
+	}
+	case secondsFile:
+	{
+		return SecondFile;
+	}
+	case vFile:
+	{
+		return VFile;
+	}
+	case freezeSecondsFile:
+	{
+		return  FreezeSecFile;
+	}
 
-	int size = fileGetSize(METEO_CONFIG_FILE);
-	char* jsonString = new char[size + 1];
-	fileGetContent(METEO_CONFIG_FILE, jsonString, size + 1);
-	JsonObject& root = jsonBuffer.parseObject(jsonString);
-
-	JsonObject& network = root["rt"];
-	cfg.name = String((const char*) network["name"]).toInt();
-	cfg.minimalTemp = String((const char*) network["mt"]).toFloat();
-	cfg.heatSec = String((const char*) network["hs"]).toFloat();
-	cfg.whiteFreezeSec = String((const char*) network["fs"]).toFloat();
-
-	delete[] jsonString;
-
-	return cfg;
+	default:
+		return "";
+	}
+	return "";
 }
 
-void saveConfig(ParamsConfig& cfg) {
-	ActiveConfig = cfg;
+//check 0 becouse this end str
+byte checkZero(byte &val)
+{
+	if(val == 0)
+	 return 255;
 
-	DynamicJsonBuffer jsonBuffer;
-	JsonObject& root = jsonBuffer.createObject();
-	JsonObject& network = jsonBuffer.createObject();
-	root["rt"] = network;
-	network["name"] = String(cfg.name).c_str();
-	network["mt"] = String(cfg.minimalTemp).c_str();
-	network["hs"] = String(cfg.heatSec).c_str();
-	network["fs"] = String(cfg.whiteFreezeSec).c_str();
-
-	/*JsonObject& correction = jsonBuffer.createObject();
-	 root["correction"] = correction;
-	 correction["name"] = cfg.name;
-	 correction["ssid"] = cfg.ssid;
-	 correction["pswd"] = cfg.pswd;*/
-
-	char buf[300];
-	root.prettyPrintTo(buf, sizeof(buf));
-	fileSetContent(METEO_CONFIG_FILE, buf);
+	return val;
 }
+
+
+//if 255 ret 0
+byte checkZeroChar(char val)
+{
+	if(val == 255)
+	  return 0;
+
+	return val;
+}
+
+String loadConfig(fileType type)
+{
+	return "";
+	String fileName = getFileName(type);
+	if(fileExist(fileName))
+	{
+		String file = fileGetContent(fileName);
+
+		return file;
+	}
+	return "";
+}
+
+void saveConfig(fileType type, String strVal)
+{
+	return;
+	String fileName = getFileName(type);
+
+	if(fileName.length())
+		fileSetContent(fileName, strVal);
+}
+
+int loadName()
+{
+	if(fileExist(NameFile))
+	{
+		String file = fileGetContent(NameFile);
+
+		return file.toInt();
+	}
+	return 0;
+	
+}
+void saveName(String name)
+{
+	fileSetContent(NameFile, name);
+}
+
+
+
+
+

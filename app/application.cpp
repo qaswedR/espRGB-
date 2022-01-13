@@ -283,9 +283,7 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 	if (request.getQueryParameter("name").length() > 0) {
 		name = request.getQueryParameter("name").toInt();
 
-		ActiveConfig.name = name;
-		saveConfig(ActiveConfig);
-	//	saveName(String(name));
+		saveName(String(name));
 		aliveTimer.stop();
 		aliveTimer.setIntervalMs(1000 * 5);
 		aliveTimer.start();
@@ -868,17 +866,13 @@ void init() {
 	heatEnableTimer.initializeMs(0, heatOnWitePin);
 	coreTimer.initializeMs(1000*10, coreHandler).start();
 	
-	ParamsConfig cfg = loadConfig();
-	name = cfg.name;
- 	minimalTemp = cfg.minimalTemp;
- 	heatSec = cfg.heatSec;
- 	whiteFreezeSec = cfg.whiteFreezeSec;
+	name = loadName();
 	lights = new LightHandler(pins, &white, &vCallback);
 
 //	minimalTemp = loadConfig(tempFile).toFloat();
 //	heatSec = loadConfig(secondsFile).toFloat();
 //	whiteFreezeSec = loadConfig(freezeSecondsFile).toFloat();
 
-	updateHeater();
+//	updateHeater();
 }
 

@@ -1,7 +1,7 @@
 #ifndef INCLUDE_CONFIGURATION_H_
 #define INCLUDE_CONFIGURATION_H_
 
-#include <user_config.h>
+//#include <user_config.h>
 #include <SmingCore/SmingCore.h>
 
 // If you want, you can define WiFi settings globally in Eclipse Environment Variables
@@ -15,31 +15,29 @@
 //#define CONTROL_PIN 3 // UART0 RX pin
 //#define CONTROL_PIN 15
 
-#define METEO_CONFIG_FILE ".meteo.conf" // leading point for security reasons :)
+#define NameFile ".name.conf"
+#define TempFile ".temp.conf"
+#define SecondFile ".sec.conf" // leading point for security reasons :)
+#define VFile ".v.conf"
+#define FreezeSecFile ".fsec.conf"
 
-
-
-struct ParamsConfig
+enum fileType
 {
-	ParamsConfig()
-	{
-		name = 0;
-		minimalTemp = 0;
-		heatSec = 0;
-		whiteFreezeSec = 0;
-	}
-	int name; // Temperature adjustment
-	float minimalTemp;
-	float heatSec;
-	float whiteFreezeSec;
-
+	nameFile, //name
+	tempFile, //min temp from heater
+	secondsFile, // seconds heat 1 time
+	vFile, //britshess,
+	freezeSecondsFile
 };
 
-ParamsConfig loadConfig();
-void saveConfig(ParamsConfig& cfg);
+String loadConfig(fileType type);
+void saveConfig(fileType type, String strVal);
+
+int loadName();
+void saveName(String name);
 //extern void startWebClock();
 
-extern ParamsConfig ActiveConfig;
+//extern MeteoConfig ActiveConfig;
 
 #endif /* INCLUDE_CONFIGURATION_H_ */
 
