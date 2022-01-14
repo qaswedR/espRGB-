@@ -78,22 +78,24 @@ void LightHandler::handleHsvImpl(HttpRequest &request, HttpResponse &response)
 		if (request.getQueryParameter("v_new").length() > 0) {
 			if (iparamV >= 0 && iparamV <= 100) {
 				v = iparamV;
-
-			//	saveConfig(vFile, String(v));
+				saveConfig(vFile, String(v));
 			}
 			if (request.getQueryParameter("v_new").toFloat () >= 0
 					&& request.getQueryParameter("v_new").toFloat () <= 100) {
 				v_new = request.getQueryParameter("v_new").toFloat ();
+				saveConfig(vFile, String(v_new));
 
 			}
 		} else {
 			v_new = iparamV;
+			saveConfig(vFile, String(v_new));
 		}
 	} else {
 		if (request.getQueryParameter("v_new").length() > 0
 				&& request.getQueryParameter("v_new").toFloat () >= 0.0
 				&& request.getQueryParameter("v_new").toFloat () <= 100.0) {
 			v_new = request.getQueryParameter("v_new").toFloat ();
+			saveConfig(vFile, String(v_new));
 		}
 	}
 
@@ -161,7 +163,7 @@ void LightHandler::handleHsvImpl(HttpRequest &request, HttpResponse &response)
 		
 	
 	{
-		ledTimer.start();
+	  startTimer();
 	}
 //	sendLog("handleHsv");
 

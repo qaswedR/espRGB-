@@ -1,5 +1,6 @@
 #include "../include/configuration.h"
 #include "../include/version.h"
+#include "../include/otaUpdater.h"
 //#include "../include/lightHandler.hpp"
 #include "lightHandler.cpp"
 #include <user_config.h>
@@ -16,11 +17,6 @@
 
 #define HTTP_BR "<br/>"
 // download urls, set appropriately
-#define SERVER_IP "192.168.0.4"
-#define SERVER_URL "http://" SERVER_IP "/firmware/main/"
-#define ROM_0_URL  SERVER_URL "rom0.bin"
-#define ROM_1_URL  SERVER_URL "rom1.bin"
-#define SPIFFS_URL SERVER_URL "spiff_rom.bin"
 
 // If you want, you can define WiFi settings globally in Eclipse Environment Variables
 #ifndef WIFI_SSID
@@ -28,12 +24,15 @@
 #define WIFI_PWD "12345679"
 #endif
 
+#define TEMP_PIN   16
+#define MOTION_PIN 10
+#define RC_PIN     12
+#define IR_PIN     14
 //#define LED_PIN 15 // GPIO number
 #define r_pin  4
 #define g_pin  5
 #define b_pin  0
 //#define s 100    //из hsv
-#define ir_pin 14
 #define HSV_TO_STATE(h,s,v) 
 
 /*#define IR_ONE_SPACE    1200 /////TEST
@@ -49,7 +48,7 @@ DS18S20 ReadTemp;
 Timer aliveTimer;
 Timer motionTimer;
 Timer tempTimer;
-Timer heatDisableTimer, dieTimer, heatEnableTimer, coreTimer;
+Timer heatDisableTimer, dieTimer, heatEnableTimer, coreTimer, rebootTimer;
 //Livolo livolo(12);
 //DriverPWM ledPWM;
 uint8_t pins[4] = { r_pin, g_pin, b_pin, w_pin }; // List of pins that you want to connect to pwm
@@ -74,7 +73,6 @@ float newT1, newT2;
 float told = 0;
 float motionV = 0;
 bool alive = 0;
-rBootHttpUpdate* otaUpdater = 0;
 static bool needReconnect = false;
 float heatSec;
 float whiteFreezeSec;
@@ -95,25 +93,6 @@ void ICACHE_FLASH_ATTR sendResponce(HttpResponse &response)
 {
 		response.setContentType(ContentType::HTML);
 		response.sendString(OK_RESPONCE);
-}
-void  OtaUpdate_CallBack(bool result) {
-
-	//Serial.println("In callback...");
-	if (result == true) {
-// success
-		uint8 slot;
-		slot = rboot_get_current_rom();
-		if (slot == 0)
-			slot = 1;
-		else
-			slot = 0;
-		rboot_set_current_rom(slot);
-		System.restart();
-	} else {
-// fail
-
-		//Serial.println("CALLBACK OTA FAIL...");
-	}
 }
 
 void  whiteOff() {
@@ -143,92 +122,45 @@ void  heatOnWitePin() {
 void  reboot(){
 	System.restart();	
 }
+
 void startDieTimer()
 {
 		dieTimer.stop();
-		dieTimer.setIntervalMs(1500);
+		dieTimer.setIntervalMs(210);
 		dieTimer.start();	
 }
-void ICACHE_FLASH_ATTR rebootByWifi() {
-
+void setLights(float _h)
+{
 		lights->setVNew(0.0);
-		lights->setHNew(0.0);
-		lights->setSNew(100.0);
-		lights->setMode(2);
-	    sendLog("rebootByWifi");
-		startDieTimer();
+		lights->setH(_h);
+		lights->setS(100.0);
+		lights->setMode(0);	
 }
-void ICACHE_FLASH_ATTR rebootByHttp() {
+void rebootByDie() {
 
-		lights->setVNew(0.0);
-		lights->setHNew(120.0);
-		lights->setSNew(100.0);
-		lights->setMode(2);
-	    sendLog("rebootByHttp");
-		startDieTimer();
-}
-void  OtaUpdate() {
-
-	uint8 slot;
-	rboot_config bootconf;
-
-	//Serial.println("Updating...");
-
-// need a clean object, otherwise if run before and failed will not run again
-	if (otaUpdater)
-		delete otaUpdater;
-	otaUpdater = new rBootHttpUpdate();
-
-// select rom slot to flash
-	bootconf = rboot_get_config();
-	slot = bootconf.current_rom;
-	if (slot == 0)
-		slot = 1;
-	else
-		slot = 0;
-
-#ifndef RBOOT_TWO_ROMS
-// flash rom to position indicated in the rBoot config rom table
-	otaUpdater->addItem(bootconf.roms[slot], ROM_0_URL);
-#else
-// flash appropriate rom
-	if (slot == 0) {
-		otaUpdater->addItem(bootconf.roms[slot], ROM_0_URL);
-	} else {
-		otaUpdater->addItem(bootconf.roms[slot], ROM_1_URL);
+	setLights(0.0);
+	//sendLog("rDie");
+	if(!rebootTimer.isStarted())
+	{
+		rebootTimer.start();
 	}
-#endif
+}
+void rebootByWifi() {
 
-#ifndef DISABLE_SPIFFS
-// use user supplied values (defaults for 4mb flash in makefile)
-	if (slot == 0) {
-		otaUpdater->addItem(RBOOT_SPIFFS_0, SPIFFS_URL);
-	} else {
-		otaUpdater->addItem(RBOOT_SPIFFS_1, SPIFFS_URL);
-	}
-#endif
+	setLights(240.0);
+	 //   sendLog("rWifi");
+		startDieTimer();
+//	rebootTimer.start();
+}
+void rebootByHttp() {
 
-// request switch and reboot on success
-//otaUpdater->switchToRom(slot);
-// and/or set a callback (called on failure or success without switching requested)
-	otaUpdater->setCallback(OtaUpdate_CallBack);
-
-// start update
-	otaUpdater->start();
+	setLights(120.0);
+	//    sendLog("rHttp");
+		startDieTimer();
+//	rebootTimer.start();
 }
 
-void  Switch() {
-	uint8 before, after;
-	before = rboot_get_current_rom();
-	if (before == 0)
-		after = 1;
-	else
-		after = 0;
-	//Serial.printf("Swapping from rom %d to rom %d.\r\n", before, after);
-	rboot_set_current_rom(after);
-	//Serial.println("Restarting...\r\n");
-	System.restart();
-}
+
 
  void ICACHE_FLASH_ATTR downloadString(String query, String obj = "")
  {
@@ -278,84 +210,129 @@ void ICACHE_FLASH_ATTR updateHeater() {
 }
 
 void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
-		HttpResponse &response) {
+		HttpResponse &response) 
+{
 
-	if (request.getQueryParameter("name").length() > 0) {
-		name = request.getQueryParameter("name").toInt();
-
-		saveName(String(name));
-		aliveTimer.stop();
-		aliveTimer.setIntervalMs(1000 * 5);
-		aliveTimer.start();
-        alive = 0;
-		//sendIp();
-
-		//delay(10);
-		//System.restart();
-
-	}
-
-	if (request.getQueryParameter("temp").length() > 0) {
-		minimalTemp = request.getQueryParameter("temp").toFloat();
-	//	saveConfig(tempFile, String(minimalTemp));
-	}
+	// controller unique name
+	{
+		String _name = request.getQueryParameter("name");
+		if (_name.length() > 0) 
+		{
+			name = _name.toInt();
 	
-	if (request.getQueryParameter("irpin").length() > 0) {
-		irpinState = request.getQueryParameter("irpin").toInt();
-		digitalWrite(ir_pin, irpinState);
-	}
-	
-	if (request.getQueryParameter("currV").length() > 0) {
-		motionV = request.getQueryParameter("currV").toInt();
-	}
-
-	if (request.getQueryParameter("fs").length() > 0) {
-		whiteFreezeSec = request.getQueryParameter("fs").toFloat();
-	//	saveConfig(freezeSecondsFile, String(whiteFreezeSec));
-		updateHeater();
-	}
-
-	if (request.getQueryParameter("hs").length() > 0) {
-		heatSec = request.getQueryParameter("hs").toFloat();
-	//	saveConfig(secondsFile, String(heatSec));
-		updateHeater();
-
-	}
-
-	if (request.getQueryParameter("ok").length() > 0) {
-		if (request.getQueryParameter("ok").toInt() == 1) {
-			alive = 1;
-			//	reboot = 0;
+			saveName(String(name));
 			aliveTimer.stop();
-			aliveTimer.setIntervalMs(1000 * 60);
+			aliveTimer.setIntervalMs(1000 * 5);
 			aliveTimer.start();
-			dieTimer.stop();
+			alive = 0;
+			//sendIp();
+	
+			//delay(10);
+			//System.restart();
+	
 		}
 	}
-
-	if (request.getQueryParameter("mWork").length() > 0) {
-		if (request.getQueryParameter("mWork").toInt() == 1) {
-
-			motionWorkFlag = 1;
-			motionTimer.start();
-			if (request.getQueryParameter("valueMSensor").toInt() == 1) {
-				digitalWrite(10, 0);
-				valueMSensor = 1;
-			} else if (request.getQueryParameter("valueMSensor").toInt() == 0) {
-				digitalWrite(10, 1);
-				valueMSensor = 0;
+	
+	// minimal temp for heater
+	{
+		String _temp = request.getQueryParameter("temp");
+		if (_temp.length() > 0) {
+			minimalTemp = _temp.toFloat();
+			saveConfig(tempFile, String(minimalTemp));
+		}
+	}
+	
+	//ir pin state
+	{
+		String _irpin = request.getQueryParameter("irpin");
+		if (_irpin.length() > 0) {
+			irpinState = _irpin.toInt();
+			digitalWrite(IR_PIN, irpinState);
+		}
+	}
+	
+	//V for motion detect
+	{
+		String _currV = request.getQueryParameter("currV");
+		if (_currV.length() > 0) {
+			motionV = _currV.toInt();
+		}
+	}
+	
+	// freeze seconds for heater in ms
+	{
+		String _fs = request.getQueryParameter("fs");
+		if (_fs.length() > 0) {
+			whiteFreezeSec = _fs.toFloat();
+			saveConfig(freezeSecondsFile, String(whiteFreezeSec));
+			updateHeater();
+		}
+	}
+	
+	// heat seconds for heater in ms
+	{
+		String _hs = request.getQueryParameter("hs");
+		if (_hs.length() > 0) {
+			heatSec = _hs.toFloat();
+			saveConfig(secondsFile, String(heatSec));
+			updateHeater();
+	
+		}
+	}
+	
+	//config is ok          ?????? why
+	{
+		String ok = request.getQueryParameter("ok");
+		if (ok.length() > 0) {
+			if (ok.toInt() == 1) {
+				alive = 1;
+				//	reboot = 0;
+				aliveTimer.stop();
+				aliveTimer.setIntervalMs(1000 * 60);
+				aliveTimer.start();
+				dieTimer.stop();
 			}
 		}
-		if (request.getQueryParameter("mWork").toInt() == 0) {
-
-			motionWorkFlag = 0;
-			motionTimer.stop();
+	}
+	
+	//motion sensor work
+	{
+		String mWork = request.getQueryParameter("mWork");
+		if (mWork.length() > 0) {
+			if (mWork.toInt() == 1) {
+	
+				motionWorkFlag = 1;
+				if(!motionTimer.isStarted())
+				{
+					motionTimer.start();
+				}
+				if (request.getQueryParameter("valueMSensor").toInt() == 1) {
+					digitalWrite(10, 0);
+					valueMSensor = 1;
+				} else if (request.getQueryParameter("valueMSensor").toInt() == 0) {
+					digitalWrite(10, 1);
+					valueMSensor = 0;
+				}
+			}
+			if (mWork.toInt() == 0) {
+	
+				motionWorkFlag = 0;
+				motionTimer.stop();
+			}
 		}
 	}
-	if (request.getQueryParameter("smoothD").length() > 0
-			&& request.getQueryParameter("smoothD").toInt() >= 0
-			&& request.getQueryParameter("smoothD").toInt() < 50) {
-		lights->setSmoothD(request.getQueryParameter("smoothD").toInt());
+	
+	//smooth light change
+	{
+		String smoothD = request.getQueryParameter("smoothD");
+		if(smoothD.length())
+		{
+			int smoothDInt = smoothD.toInt();
+			if (smoothDInt == 0 || smoothDInt == 1) 
+			{
+				lights->setSmoothD(smoothDInt);
+			}
+		}
 	}
 	
 		
@@ -389,7 +366,7 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 	//requestStr += ("currVmotion = " + String(motionV) + HTTP_BR);
 	requestStr += ("mf = " + String(motionFlag) + HTTP_BR);
 	requestStr += ("mti = " + String(motionTimer.getIntervalMs()) + HTTP_BR);
-	requestStr += ("lts = " + String(lights->ledTimerIsStarted()) + HTTP_BR);
+	//requestStr += ("lts = " + String(lights->ledTimerIsStarted()) + HTTP_BR);
 	requestStr += ("moisPrst = " + String(soilMoisturePercent) + HTTP_BR);
 	requestStr += ("irpinState = " + String(irpinState) + HTTP_BR);
 	
@@ -405,14 +382,14 @@ void handleIr(HttpRequest &request, HttpResponse &response) {
 	sendResponce(response);
 	if (request.getQueryParameter("code").length() > 0) {
 		unsigned long code = request.getQueryParameter("code").toInt();
-IRsend irsend(ir_pin);
+IRsend irsend(IR_PIN);
 		irsend.sendNEC(code, 32);
 ////Serial.print(i); //Serial.print("="); //Serial.println(code);
 
 	//	delay(1);
 	}
 //	if (request.getPostParameter("raw").length() > 0) {
-//		IRSenderBitBang irSender(ir_pin);
+//		IRSenderBitBang irSender(IR_PIN);
 //		int IR_ONE_SPACE = 1200;
 //		int IR_ZERO_SPACE = 450;
 //		int IR_BIT_MARK = 450;
@@ -497,13 +474,7 @@ void sendTemp() {
 		static const int sensorPin = A0;
 		int measuredVal = analogRead(sensorPin);
 		int newSoilMoisturePercent = map(measuredVal, airVal, waterVal, 0, 100);
-		if(newSoilMoisturePercent < 0)
-		{
-			newSoilMoisturePercent = 0;
-		}else if(newSoilMoisturePercent > 100)
-		{
-			newSoilMoisturePercent = 100;			
-		}
+		
 		if (soilMoisturePercent != newSoilMoisturePercent && alive && newSoilMoisturePercent)
 		{
 			soilMoisturePercent = newSoilMoisturePercent;
@@ -517,7 +488,7 @@ void sendTemp() {
 		}
 	}
 	
-	uint8_t a;
+	//uint8_t a;
 	//uint64_t info;
 //	MeteoConfig cfg = loadConfig();
 
@@ -527,7 +498,7 @@ void sendTemp() {
 	{
 		static int sz = ReadTemp.GetSensorsCount();
 		//	if (sz) // is minimum 1 sensor detected ?
-		for (a = 0; a < sz; a++) // prints for all sensors
+		for (uint8_t a = 0; a < sz; a++) // prints for all sensors
 		{
 			//Serial.print(" T=");
 			if (ReadTemp.IsValidTemperature(a)) // temperature read correctly ?
@@ -663,34 +634,32 @@ void ICACHE_FLASH_ATTR handleRC(HttpRequest &request, HttpResponse &response) {
 		//	sendLog("handleRC");
 	sendResponce(response);
 
-	if (request.getQueryParameter("code").toInt() > 0
-			&& request.getQueryParameter("bit").toInt() < 70
-			&& request.getQueryParameter("bit").toInt() > 0) 
+	int code = request.getQueryParameter("code").toInt();
+	int bit = request.getQueryParameter("bit").toInt();
+	if (code > 0
+			&& bit < 70
+			&& bit > 0) 
 	{
 				
 		RCSwitch mySwitch;
-		mySwitch.enableTransmit(12);
-		mySwitch.send(request.getQueryParameter("code").toInt(),
-				request.getQueryParameter("bit").toInt());
+		mySwitch.enableTransmit(RC_PIN);
+		mySwitch.send(code,	bit);
 		//delay(1);
 	}
 }
 
 void handleOTA(HttpRequest &request, HttpResponse &response) {
 
-	sendLog("handleOTA");
+	sendResponce(response);
 	if (request.getQueryParameter("start") == "now") {
 
-		delay(5);
+		delay(1);
 		OtaUpdate();
-		response.setContentType(ContentType::HTML);
-		response.sendString("OTA start.\n");
 	}
-	if (request.getQueryParameter("restart") == "now") {
-		response.setContentType(ContentType::HTML);
-		response.sendString("Restart.\n <br/>");
+	else if (request.getQueryParameter("restart") == "now") {
 		rebootByHttp();
 	}
+	sendLog("handleOTA");
 
 }
 
@@ -730,7 +699,7 @@ void startWebServer() {
 	//sendTemp();
 	aliveSend();
 	//delay(10);
-	sendTemp();
+	//sendTemp();
 
 }
 
@@ -797,7 +766,7 @@ void vCallback()
 }
 
 void motion() {
-	if (digitalRead(10) == valueMSensor) 
+	if (digitalRead(MOTION_PIN) == valueMSensor) 
 	{
 		if (!motionFlag)
 		{
@@ -826,12 +795,12 @@ void init() {
 	//lights = LightHandler::getInstance(pins, &white, &voff, &motionFlag);
 //	lights = &LightHandler(pins, &white, &voff, &motionFlag);
 	//spiffs_mount();
-	pinMode(10, INPUT);
+	pinMode(MOTION_PIN, INPUT);
 	pinMode(w_pin, 1);
 	digitalWrite(w_pin, 0);
-	pinMode(ir_pin, 1);
-	pinMode(13, 1);
-	digitalWrite(ir_pin, 0);
+	pinMode(IR_PIN, 1);
+//	pinMode(13, 1);
+	digitalWrite(IR_PIN, 0);
 	Serial.begin(SERIAL_BAUD_RATE);   		// 115200 by default
 	Serial.systemDebugOutput(0);   		// Debug output to serial
 //	ledPWM.initialize();
@@ -841,7 +810,7 @@ void init() {
 	WifiStation.enable(true);
 	WifiStation.config(WIFI_SSID, WIFI_PWD);
 	WifiAccessPoint.enable(false);
-	ReadTemp.Init(16);  // select PIN It's required for one-wire initialization!
+	ReadTemp.Init(TEMP_PIN);  // select PIN It's required for one-wire initialization!
 	ReadTemp.StartMeasure(); // first measure start,result after 1.2 seconds * number of sensors
 //	int slot = rboot_get_current_rom();
 	if (rboot_get_current_rom() == 0) {
@@ -862,7 +831,8 @@ void init() {
 	motionTimer.initializeMs(50, motion);
 	aliveTimer.initializeMs(1000 * 5, aliveSend);
 	heatDisableTimer.initializeMs(1000 * 5, whiteOff);
-	dieTimer.initializeMs(1000 * 60 * 9, reboot).start();
+	dieTimer.initializeMs(1000 * 60 * 9, rebootByDie).start();
+	rebootTimer.initializeMs(350, reboot);
 	heatEnableTimer.initializeMs(0, heatOnWitePin);
 	coreTimer.initializeMs(1000*10, coreHandler).start();
 	
@@ -872,6 +842,8 @@ void init() {
 	minimalTemp = loadConfig(tempFile).toFloat();
 	heatSec = loadConfig(secondsFile).toFloat();
 	whiteFreezeSec = loadConfig(freezeSecondsFile).toFloat();
+	float cfgV = loadConfig(vFile).toFloat();
+	lights->setVNew(cfgV);
 
 	updateHeater();
 }

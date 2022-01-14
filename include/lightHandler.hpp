@@ -29,22 +29,36 @@ void handleHsvImpl(HttpRequest &request, HttpResponse &response);
   void  setVNew(float _v)
   {
 	  v_new = _v;
-	  ledTimer.start();
+	  startTimer();
   }
   
   void setHNew(float _h)
   {
 	  h_new = _h;
+	  startTimer();
+  }
+  void setH(float _h)
+  {
+	  h = _h;
+	  startTimer();
   }
   
   void setSNew(float _s)
   {
 	  s_new = _s;
+	  startTimer();
+  }
+  
+  void setS(float _s)
+  {
+	  s = _s;
+	  startTimer();
   }
   
   void ICACHE_FLASH_ATTR setMode(uint8_t _mode)
   {
 	  mode = _mode;
+	  startTimer();
   }
   
   void ICACHE_FLASH_ATTR setDuty(unsigned int _duty)
@@ -95,6 +109,14 @@ int d_light = 0;
 uint8_t mode = 0;
 unsigned int duty;
 HardwarePWM *HW_pwm;
+
+	void startTimer()
+	{
+		if(!ledTimer.isStarted())
+		{
+			ledTimer.start();
+		}
+	}
 };
 
 #endif /* LIGHT_HANDLER_H_ */
