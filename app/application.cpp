@@ -57,10 +57,11 @@ float white;
 HttpServer server;
 HttpClient majordomo;
 /////////////////////////////////flags
-bool motionFlag = 0;   // 0/1 motion
-bool dayFlag;       //светлое/тЄмное врем€ суток
-bool motionWorkFlag;       // on/off motion detected
-bool valueMSensor;
+bool motionFlag = false;     // 0/1 motion
+bool dayFlag = false;         //светлое/тЄмное врем€ суток
+bool motionWorkFlag = false;       // on/off motion detected
+bool valueMSensor = false;
+bool analogOn = false;
 //uint8_t reboot = 0;
 int motionTimeOn;
 //uint8_t vNightMotion; //- €ркость ленты ночью
@@ -219,8 +220,7 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 		if (_name.length() > 0) 
 		{
 			name = _name.toInt();
-	
-			saveName(String(name));
+			saveConfig(nameFile, String(name));
 			aliveTimer.stop();
 			aliveTimer.setIntervalMs(1000 * 5);
 			aliveTimer.start();
@@ -277,6 +277,13 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 			saveConfig(secondsFile, String(heatSec));
 			updateHeater();
 	
+		}
+	}
+	// need check analog pin
+	{
+		String _anal = request.getQueryParameter("anal");
+		if (_anal.length() > 0) {
+			analogOn = _anal.toInt();	
 		}
 	}
 	
@@ -369,6 +376,7 @@ void ICACHE_FLASH_ATTR handleConfig(HttpRequest &request,
 	//requestStr += ("lts = " + String(lights->ledTimerIsStarted()) + HTTP_BR);
 	requestStr += ("moisPrst = " + String(soilMoisturePercent) + HTTP_BR);
 	requestStr += ("irpinState = " + String(irpinState) + HTTP_BR);
+	requestStr += ("analogOn = " + String(analogOn) + HTTP_BR);
 	
 	
 	
@@ -466,7 +474,7 @@ IRsend irsend(IR_PIN);
 }
 
 void sendTemp() {
-	if(++soilMoistureCheckCounter >= 6)
+	if(analogOn && ++soilMoistureCheckCounter >= 6)
 	{
 		soilMoistureCheckCounter = 0;
 		static const int airVal = 865;
@@ -474,7 +482,13 @@ void sendTemp() {
 		static const int sensorPin = A0;
 		int measuredVal = analogRead(sensorPin);
 		int newSoilMoisturePercent = map(measuredVal, airVal, waterVal, 0, 100);
-		
+		if(newSoilMoisturePercent < 0)
+		{
+			newSoilMoisturePercent = 0;
+		}else if(newSoilMoisturePercent > 100)
+		{
+			newSoilMoisturePercent = 100;			
+		}
 		if (soilMoisturePercent != newSoilMoisturePercent && alive && newSoilMoisturePercent)
 		{
 			soilMoisturePercent = newSoilMoisturePercent;
@@ -836,9 +850,9 @@ void init() {
 	heatEnableTimer.initializeMs(0, heatOnWitePin);
 	coreTimer.initializeMs(1000*10, coreHandler).start();
 	
-	name = loadName();
 	lights = new LightHandler(pins, &white, &vCallback);
 
+	name = loadConfig(nameFile).toFloat();
 	minimalTemp = loadConfig(tempFile).toFloat();
 	heatSec = loadConfig(secondsFile).toFloat();
 	whiteFreezeSec = loadConfig(freezeSecondsFile).toFloat();

@@ -73,21 +73,6 @@ void saveConfig(fileType type, String strVal)
 		fileSetContent(fileName, strVal);
 }
 
-int loadName()
-{
-	if(fileExist(NameFile))
-	{
-		String file = fileGetContent(NameFile);
-
-		return file.toInt();
-	}
-	return 0;
-	
-}
-void saveName(String name)
-{
-	fileSetContent(NameFile, name);
-}
 
 
 
